@@ -137,6 +137,8 @@ elastic_workflow <- workflow() %>%
   add_model(elastic_spec)
 ```
 
+We'll be fitting 500 models. 
+
 ### Exercise 6
 
 Fit the models to your folded data using `tune_grid()`.
@@ -153,9 +155,23 @@ tune_res <- tune_grid(
 autoplot(tune_res)
 ```
 
+Smaller values of mixture and penalty produce better accuracy and ROC AUC. 
+
 ### Exercise 7
 
 Use `select_best()` to choose the model that has the optimal `roc_auc`. Then use `finalize_workflow()`, `fit()`, and `augment()` to fit the model to the training set and evaluate its performance on the testing set.
+
+```{r}
+best_penalty_mixture <- select_best(tune_res, metric = "roc_auc")
+best_penalty_mixture
+
+elastic_final <- finalize_workflow(elastic_workflow, best_penalty_mixture)
+
+elastic_final_fit <- fit(elastic_final, data = pokemon_train)
+
+augment(elastic_final_fit, new_data = pokemon_test) %>%
+  accuracy(truth = type_1, estimate = .pred_class)
+```
 
 ### Exercise 8
 
@@ -164,6 +180,23 @@ Calculate the overall ROC AUC on the testing set.
 Then create plots of the different ROC curves, one per level of the outcome. Also make a heat map of the confusion matrix.
 
 What do you notice? How did your model do? Which Pokemon types is the model best at predicting, and which is it worst at? Do you have any ideas why this might be?
+
+```{r}
+augment(elastic_final_fit, new_data = pokemon_test) %>%
+  roc_auc(truth=type_1, estimate= c(.pred_Bug, .pred_Fire, .pred_Grass, 
+                                    .pred_Normal, .pred_Water, .pred_Psychic))
+
+augment(elastic_final_fit, new_data = pokemon_test) %>%
+  roc_curve(truth=type_1, estimate= c(.pred_Bug, .pred_Fire, .pred_Grass, 
+                                    .pred_Normal, .pred_Water, .pred_Psychic)) %>%
+  autoplot()
+
+augment(elastic_final_fit, new_data = pokemon_test) %>%
+  conf_mat(truth=type_1, estimate=.pred_class) %>%
+  autoplot(type = "heatmap")
+```
+
+The overall roc_auc is average which means our model did a decent job. It was good at predicting Normal types and bad at predicting psychic types. It could be that normal type pokemon all have similar stats while psychic type pokemon have different stats. 
 
 ## For 231 Students
 
